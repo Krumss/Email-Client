@@ -21,9 +21,9 @@ import socket
 #
 
 # Replace this variable with your CS email address
-YOUREMAIL = "hello@cs.hku.hk"
+YOUREMAIL = "u3568749@cs.hku.hk"
 # Replace this variable with your student number
-MARKER = '3035999999'
+MARKER = '3035687493'
 
 # The Email SMTP Server
 SERVER = "testmail.cs.hku.hk"   #SMTP Email Server
@@ -40,6 +40,71 @@ filename = ''                   #For keeping the filename
 def do_Send():
   # To be completed
   print('Send')
+
+  mailserver = (SERVER, SPORT)
+  clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  clientSocket.connect(mailserver)
+
+  recv = clientSocket.recv(1024)
+  print("Message after connection request:" +str(recv))
+  if recv[:3] != '220':
+    print('220 reply not received from server.')
+
+  # Send HELO command and print server response.
+  heloCommand = 'EHLO Alice\r\n'
+  clientSocket.send(heloCommand.encode())
+  recv1 = clientSocket.recv(1024)
+  print(recv1)
+  if recv1[:3] != '250':
+    print('250 reply not received from server.')
+
+  # Send MAIL FROM command and print server response.
+  mailFrom = "MAIL FROM: <" + YOUREMAIL + "> \r\n"
+  clientSocket.send(mailFrom.encode())
+  recv2 = clientSocket.recv(1024)
+  print("After MAIL FROM command: "+str(recv2))
+  if recv2[:3] != '250':
+    print('250 reply not received from server.')
+
+  # Send RCPT TO command and print server response.
+  rcptTo = "RCPT TO: <"+get_TO()+"> \r\n"
+  clientSocket.send(rcptTo.encode())
+  recv3 = clientSocket.recv(1024)
+  print("After RCPT TO command: "+str(recv3))
+  if recv3[:3] != '250':
+    print('250 reply not received from server.')
+
+  # Send DATA command and print server response.
+  data = "DATA\r\n"
+  clientSocket.send(data.encode())
+  recv4 = clientSocket.recv(1024)
+  print("After DATA command: "+str(recv4))
+  if recv4[:3] != '354':
+    print('354 reply not received from server.')
+
+  f = "From: " + SERVER + "\r\n"
+  clientSocket.send(f.encode())
+  subject = "Subject: " + get_Subject() + "\r\n"
+  clientSocket.send(subject.encode())
+  to = "To: " + get_TO() + "\r\n"
+  clientSocket.send(to.encode())
+  if(get_CC != ""):
+    cc = "Cc: " + get_CC() + "\r\n"
+    clientSocket.send(cc.encode())
+  clientSocket.send("\r\n".encode())
+  msg = get_Msg() + "\r\n"
+  clientSocket.send(msg.encode())
+  end = ".\r\n"
+  clientSocket.send(end.encode())
+  recv5 = clientSocket.recv(1024)
+  if recv5[:3] != '250':
+    print('250 reply not received from server.')
+  quitCommand = 'QUIT\r\n'
+  clientSocket.send(quitCommand.encode())
+  recv6 = clientSocket.recv(1024)
+  if recv6[:3] != '221':
+    print('221 reply not received from server.')
+  clientSocket.close()
 
 
 #
