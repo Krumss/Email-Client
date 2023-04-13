@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-# Student name and No.:
-# Development platform:
-# Python version:
+# Student name and No.: Wong Yat Kiu Kevin 3035687493
+# Development platform: VS Code
+# Python version: 3.11.2
 
 from tkinter import *
 from tkinter import ttk
@@ -21,7 +21,7 @@ import socket
 #
 
 # Replace this variable with your CS email address
-YOUREMAIL = "u3568749@cs.hku.hk"
+YOUREMAIL = "kykwong2@cs.hku.hk"
 # Replace this variable with your student number
 MARKER = '3035687493'
 
@@ -39,77 +39,132 @@ filename = ''                   #For keeping the filename
 #
 def do_Send():
   # To be completed
-  print('Send')
+  if(get_TO() == "" or get_Subject() == "" or get_Msg() == ""):
+    alertbox("Please fill To, Subject and Message!")
+    return
 
   mailserver = (SERVER, SPORT)
   clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  clientSocket.connect(mailserver)
+  clientSocket.settimeout(10)
+  try:
+    clientSocket.connect(mailserver)
+  except socket.timeout:
+    alertbox("SMTP server is not available")
+    clientSocket.close()
+    return
 
-  recv = clientSocket.recv(1024)
-  print("Message after connection request:" +str(recv))
+  recv = clientSocket.recv(1024).decode()
+  print(str(recv))
   if recv[:3] != '220':
-    print('220 reply not received from server.')
+    alertbox(recv)
+    print(recv)
+    clientSocket.close()
+    return
 
   # Send HELO command and print server response.
-  heloCommand = 'EHLO Alice\r\n'
-  clientSocket.send(heloCommand.encode())
-  recv1 = clientSocket.recv(1024)
-  print(recv1)
-  if recv1[:3] != '250':
-    print('250 reply not received from server.')
-
+  hostname=socket.gethostname()
+  IPAddr=socket.gethostbyname(hostname)
+  heloCommand = "EHLO " + IPAddr + "\r\n"
+  if(not send_command(clientSocket, heloCommand, '250')):
+    return
+  
   # Send MAIL FROM command and print server response.
   mailFrom = "MAIL FROM: <" + YOUREMAIL + "> \r\n"
-  clientSocket.send(mailFrom.encode())
-  recv2 = clientSocket.recv(1024)
-  print("After MAIL FROM command: "+str(recv2))
-  if recv2[:3] != '250':
-    print('250 reply not received from server.')
-
-  # Send RCPT TO command and print server response.
-  rcptTo = "RCPT TO: <"+get_TO()+"> \r\n"
-  clientSocket.send(rcptTo.encode())
-  recv3 = clientSocket.recv(1024)
-  print("After RCPT TO command: "+str(recv3))
-  if recv3[:3] != '250':
-    print('250 reply not received from server.')
+  if(not send_command(clientSocket, mailFrom, '250')):
+    return
+  
+  # Send RCPT TO command and print server response. Check valid for To, cc, bcc
+  recpts = get_TO().split(",")
+  if get_CC() != "":
+    recpts += get_CC().split(",")
+  if get_BCC() != "":
+    recpts += get_BCC().split(",")
+  for recpt in recpts:
+    if echeck(recpt):
+      rcptTo = "RCPT TO: <" + recpt + "> \r\n"
+      if(not send_command(clientSocket, rcptTo, '250')):
+        return
+    else:
+      alertbox("Invalid Email - " + recpt + "\nRemember: No space after comma with multiple emails")
+      clientSocket.close()
+      return
 
   # Send DATA command and print server response.
   data = "DATA\r\n"
-  clientSocket.send(data.encode())
-  recv4 = clientSocket.recv(1024)
-  print("After DATA command: "+str(recv4))
-  if recv4[:3] != '354':
-    print('354 reply not received from server.')
+  if(not send_command(clientSocket, data, '354')):
+    return
 
   f = "From: " + SERVER + "\r\n"
   clientSocket.send(f.encode())
+
   subject = "Subject: " + get_Subject() + "\r\n"
   clientSocket.send(subject.encode())
+
+
   to = "To: " + get_TO() + "\r\n"
   clientSocket.send(to.encode())
-  if(get_CC != ""):
+
+  if(get_CC() != ""):
     cc = "Cc: " + get_CC() + "\r\n"
+    print(cc)
     clientSocket.send(cc.encode())
-  clientSocket.send("\r\n".encode())
-  msg = get_Msg() + "\r\n"
-  clientSocket.send(msg.encode())
+
+  if(get_BCC() != ""):
+    bcc = "Bcc: " + get_BCC() + "\r\n"
+    print(bcc)
+    clientSocket.send(bcc.encode())
+
+  if fileobj == None:
+    clientSocket.send("\r\n".encode())
+
+    msg = get_Msg() + "\r\n"
+    clientSocket.send(msg.encode())
+  else:
+    msg = "MIME-Version: 1.0\r\n"
+    msg += "Content-Type: multipart/mixed; boundary=" + MARKER + "\r\n"
+    msg += "\r\n"
+    msg += "--"+MARKER+"\r\n"
+    msg += "Content-Type: text/plain\r\n"
+    msg += "Content-Transfer-Encoding: 7bit\r\n"
+    msg += "\r\n"
+    msg += get_Msg() + "\r\n"
+    msg += "--"+MARKER+"\r\n"
+    msg += "Content-Type: application/octet-stream\r\n"
+    msg += "Content-Transfer-Encoding: base64\r\n"
+    msg += "Content-Disposition: attachment; filename=" + filename + "\r\n"
+    msg += "\r\n"
+    clientSocket.send(msg.encode())
+
+    clientSocket.send(base64.encodebytes(fileobj.read()))
+    clientSocket.send("\r\n".encode())
+    clientSocket.send(str("--"+MARKER+"--\r\n").encode())
+
   end = ".\r\n"
-  clientSocket.send(end.encode())
-  recv5 = clientSocket.recv(1024)
-  if recv5[:3] != '250':
-    print('250 reply not received from server.')
+  if(not send_command(clientSocket, end, '250', False)):
+    return
   quitCommand = 'QUIT\r\n'
-  clientSocket.send(quitCommand.encode())
-  recv6 = clientSocket.recv(1024)
-  if recv6[:3] != '221':
-    print('221 reply not received from server.')
+  if(not send_command(clientSocket, quitCommand, '221')):
+    return
   clientSocket.close()
+  alertbox("Successful")
+  return
 
 
 #
 # Utility functions
 #
+
+def send_command(clientSocket, command, returnCode, printCommand=True):
+  if printCommand:
+    print(command)
+  clientSocket.send(command.encode())
+  recv = clientSocket.recv(1024).decode()
+  print(recv)
+  if recv[:3] != returnCode:
+    alertbox(recv)
+    clientSocket.close()
+    return False
+  return True
 
 #This set of functions is for getting the user's inputs
 def get_TO():
